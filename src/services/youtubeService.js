@@ -1,11 +1,10 @@
 const axios = require('axios');
-const youtubedl = require('youtube-dl-exec');
+const pd = require('play-dl'); // Use play-dl
 
 const YOUTUBE_API_URL = 'https://www.googleapis.com/youtube/v3';
 const API_KEY = process.env.YOUTUBE_API_KEY;
 
 const searchYouTube = async (query) => {
-  // This function does not need to change
   try {
     const response = await axios.get(`${YOUTUBE_API_URL}/search`, {
       params: { q: query, part: 'snippet', maxResults: 15, type: 'video', key: API_KEY },
@@ -24,26 +23,17 @@ const searchYouTube = async (query) => {
 
 const getAudioStreamInfo = async (videoId) => {
   try {
-    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    // Refresh tokens to make play-dl more reliable
+    await pd.setToken({ soundcloud: { client_id: await pd.getFreeClientID() } });
+    const stream = await pd.stream(`https://www.youtube.com/watch?v=${videoId}`);
     
-    const streamUrl = await youtubedl(videoUrl, {
-      format: 'bestaudio',
-      getUrl: true, 
-    });
-
-    if (!streamUrl) {
-      throw new Error('Could not retrieve stream URL from yt-dlp.');
+    if (!stream || stream.type !== 'audio') {
+      throw new Error('Could not find a valid audio stream.');
     }
     
-    return { url: streamUrl };
+    return { url: stream.stream.url };
   } catch (error) {
-    // --- THIS IS THE ONLY CHANGE ---
-    // Log the entire error object to get more details
-    console.error('Full yt-dlp error object:', error);
-    
-    if (error.message.includes('ENOENT')) {
-       console.error('Error: yt-dlp.exe not found. Make sure it is in the "backend" folder.');
-    }
+    console.error('Error getting audio stream from play-dl:', error.message);
     throw new Error('Failed to get audio stream.');
   }
 };
